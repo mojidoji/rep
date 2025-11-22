@@ -2023,11 +2023,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (hasMarkers) {
             bulkReplayBtn.disabled = false;
             bulkReplayBtn.classList.add('ready');
-            bulkReplayBtn.title = "Start Attack (Payloads detected)";
         } else {
             bulkReplayBtn.disabled = true;
             bulkReplayBtn.classList.remove('ready');
-            bulkReplayBtn.title = "Mark payloads with § to enable Bulk Replay";
         }
     }
 

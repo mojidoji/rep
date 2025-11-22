@@ -27,7 +27,7 @@ body {
 
 /* Sidebar */
 .sidebar {
-    width: 250px;
+    width: 350px;
     min-width: 150px;
     max-width: 600px;
     background-color: var(--sidebar-bg);
@@ -600,6 +600,30 @@ tr.selected {
 .icon-btn:disabled {
     opacity: 0.3;
     cursor: default;
+}
+
+/* Custom Tooltip */
+.icon-btn[data-tooltip] {
+    position: relative;
+}
+
+.icon-btn[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #202124;
+    border: 1px solid #5f6368;
+    color: #e8eaed;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    z-index: 999999;
+    margin-bottom: 6px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
 }
 
 /* Attack Button */
