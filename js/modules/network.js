@@ -8,11 +8,10 @@ export function setupNetworkListener(onRequestCaptured) {
         // Filter out static resources (JS, CSS, images, fonts, etc.)
         const url = request.request.url.toLowerCase();
         const staticExtensions = [
-            '.js', '.css', '.map',
-            '.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.ico',
+            '.css', '.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.ico',
             '.woff', '.woff2', '.ttf', '.eot', '.otf',
             '.mp4', '.webm', '.mp3', '.wav',
-            '.pdf', '.zip', '.tar', '.gz'
+            '.pdf'
         ];
 
         // Check if URL ends with any static extension
