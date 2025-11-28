@@ -8,7 +8,7 @@
  * @param {string} template - Request template with § markers
  * @returns {Array} Array of {payloads: Array, requestContent: string}
  */
-function generateAttackRequests(attackType, positionConfigs, template) {
+export function generateAttackRequests(attackType, positionConfigs, template) {
     switch (attackType) {
         case 'sniper':
             return generateSniperRequests(positionConfigs, template);

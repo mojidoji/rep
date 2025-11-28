@@ -5,12 +5,16 @@
     "description": "A lightweight Burp Repeater clone for Chrome DevTools.",
     "author": "Bour Abdelhadi with help of LLM",
     "permissions": [
-        "devtools",
         "activeTab",
         "scripting",
         "storage"
     ],
-    "host_permissions": [
+    "optional_permissions": [
+        "webRequest",
+        "webRequestBlocking"
+    ],
+    "host_permissions": [],
+    "optional_host_permissions": [
         "<all_urls>"
     ],
     "icons": {
