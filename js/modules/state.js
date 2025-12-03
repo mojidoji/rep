@@ -20,7 +20,10 @@ export const state = {
     currentResponse: null,
     // Group Starring
     starredPages: new Set(),
-    starredDomains: new Set()
+    starredDomains: new Set(),
+    // Timeline Filter
+    timelineFilterTimestamp: null,
+    timelineFilterRequestIndex: null
 };
 
 export function addRequest(request) {
@@ -35,6 +38,8 @@ export function clearRequests() {
     state.historyIndex = -1;
     state.regularRequestBaseline = null;
     state.currentResponse = null;
+    state.timelineFilterTimestamp = null;
+    state.timelineFilterRequestIndex = null;
 }
 
 export function addToHistory(rawText, useHttps) {

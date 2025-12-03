@@ -1,6 +1,6 @@
-// UI Logic
 import { state, addToHistory, clearRequests } from './state.js';
 import { formatTime, formatBytes, highlightHTTP, escapeHtml, testRegex, decodeJWT, copyToClipboard, getHostname } from './utils.js';
+import { generateHexView } from './hex-view.js';
 
 // DOM Elements (initialized in initUI)
 export const elements = {};
@@ -20,7 +20,9 @@ export function initUI() {
     elements.historyFwdBtn = document.getElementById('history-fwd');
     elements.copyReqBtn = document.getElementById('copy-req-btn');
     elements.copyResBtn = document.getElementById('copy-res-btn');
+    elements.layoutToggleBtn = document.getElementById('layout-toggle-btn');
     elements.screenshotBtn = document.getElementById('screenshot-btn');
+    elements.multiTabBtn = document.getElementById('multi-tab-btn');
     elements.contextMenu = document.getElementById('context-menu');
     elements.clearAllBtn = document.getElementById('clear-all-btn');
     elements.exportBtn = document.getElementById('export-btn');
@@ -29,6 +31,128 @@ export function initUI() {
     elements.diffToggle = document.querySelector('.diff-toggle');
     elements.showDiffCheckbox = document.getElementById('show-diff');
     elements.toggleGroupsBtn = document.getElementById('toggle-groups-btn');
+
+    // View Tabs
+    document.querySelectorAll('.view-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const view = tab.dataset.view;
+            const pane = tab.dataset.pane;
+            if (pane === 'request') {
+                switchRequestView(view);
+            } else {
+                switchResponseView(view);
+            }
+        });
+    });
+
+    // Sync Raw Request Editor
+    const rawReqTextarea = document.getElementById('raw-request-textarea');
+    if (rawReqTextarea) {
+        rawReqTextarea.addEventListener('input', () => {
+            elements.rawRequestInput.innerText = rawReqTextarea.value;
+            // Trigger highlight update if needed, or just keep sync
+        });
+    }
+
+    // Layout Toggle
+    if (elements.layoutToggleBtn) {
+        elements.layoutToggleBtn.addEventListener('click', toggleLayout);
+
+        // Load saved layout preference
+        const savedLayout = localStorage.getItem('rep_layout_preference');
+        if (savedLayout === 'vertical') {
+            toggleLayout(false); // false to not save again (optimization) or just call it
+        }
+    }
+}
+
+function toggleLayout(save = true) {
+    const container = document.querySelector('.split-view-container');
+    const isVertical = container.classList.toggle('vertical-layout');
+
+    // Update icon rotation
+    const btn = document.getElementById('layout-toggle-btn');
+    if (btn) {
+        const svg = btn.querySelector('svg');
+        if (svg) {
+            svg.style.transform = isVertical ? 'rotate(90deg)' : 'rotate(0deg)';
+            svg.style.transition = 'transform 0.3s ease';
+        }
+    }
+
+    // Reset flex sizes to 50/50 to avoid weird sizing when switching
+    const requestPane = document.querySelector('.request-pane');
+    const responsePane = document.querySelector('.response-pane');
+    if (requestPane && responsePane) {
+        requestPane.style.flex = '1';
+        responsePane.style.flex = '1';
+    }
+
+    if (save) {
+        localStorage.setItem('rep_layout_preference', isVertical ? 'vertical' : 'horizontal');
+    }
+}
+
+function switchRequestView(view) {
+    // Update Tabs
+    document.querySelectorAll('.view-tab[data-pane="request"]').forEach(t => {
+        t.classList.toggle('active', t.dataset.view === view);
+    });
+
+    // Update Content Visibility
+    ['pretty', 'raw', 'hex'].forEach(v => {
+        const el = document.getElementById(`req-view-${v}`);
+        if (el) {
+            el.style.display = v === view ? 'flex' : 'none';
+            el.classList.toggle('active', v === view);
+        }
+    });
+
+    // Sync Content
+    const content = elements.rawRequestInput.innerText;
+
+    if (view === 'raw') {
+        const textarea = document.getElementById('raw-request-textarea');
+        if (textarea) textarea.value = content;
+    } else if (view === 'hex') {
+        const hexDisplay = document.getElementById('req-hex-display');
+        if (hexDisplay) hexDisplay.textContent = generateHexView(content);
+    } else if (view === 'pretty') {
+        // Ensure pretty view is up to date if coming from raw
+        const textarea = document.getElementById('raw-request-textarea');
+        if (textarea && textarea.value !== content) {
+            elements.rawRequestInput.innerText = textarea.value;
+            elements.rawRequestInput.innerHTML = highlightHTTP(textarea.value);
+        }
+    }
+}
+
+function switchResponseView(view) {
+    // Update Tabs
+    document.querySelectorAll('.view-tab[data-pane="response"]').forEach(t => {
+        t.classList.toggle('active', t.dataset.view === view);
+    });
+
+    // Update Content Visibility
+    ['pretty', 'raw', 'hex', 'render'].forEach(v => {
+        const el = document.getElementById(`res-view-${v}`);
+        if (el) {
+            el.style.display = v === view ? 'flex' : 'none';
+            el.classList.toggle('active', v === view);
+        }
+    });
+
+    // Sync Content
+    // Note: Response content is stored in state.currentResponse
+    const content = state.currentResponse || '';
+
+    if (view === 'raw') {
+        const pre = document.getElementById('raw-response-text');
+        if (pre) pre.textContent = content;
+    } else if (view === 'hex') {
+        const hexDisplay = document.getElementById('res-hex-display');
+        if (hexDisplay) hexDisplay.textContent = generateHexView(content);
+    }
 }
 
 export function toggleAllGroups() {
@@ -237,6 +361,18 @@ export function renderRequestItem(request, index) {
         toggleStar(request);
     };
 
+    // Timeline Filter Button
+    const timelineBtn = document.createElement('button');
+    timelineBtn.className = 'timeline-btn';
+    timelineBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14">
+        <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z" fill="currentColor"/>
+    </svg>`;
+    timelineBtn.title = 'Show requests before this one';
+    timelineBtn.onclick = (e) => {
+        e.stopPropagation();
+        setTimelineFilter(request.capturedAt, index);
+    };
+
     const numberSpan = document.createElement('span');
     numberSpan.className = 'req-number';
     numberSpan.textContent = `#${index + 1}`;
@@ -248,6 +384,7 @@ export function renderRequestItem(request, index) {
     numberSpan.style.textAlign = 'right';
 
     actionsDiv.appendChild(starBtn);
+    actionsDiv.appendChild(timelineBtn);
 
     item.appendChild(numberSpan);
     item.appendChild(methodSpan);
@@ -292,18 +429,27 @@ export function renderRequestItem(request, index) {
         }
 
         const domainContent = domainGroup.querySelector('.domain-content');
-        domainContent.appendChild(item);
+        // Prepend to show most recent first
+        domainContent.insertBefore(item, domainContent.firstChild);
 
         // Update domain count
         const domainCountSpan = domainGroup.querySelector('.domain-count');
         const domainCount = parseInt(domainCountSpan.textContent.replace(/[()]/g, '')) || 0;
         domainCountSpan.textContent = `(${domainCount + 1})`;
     } else {
-        // First-party request - insert before any domain groups (keep at top)
+        // First-party request - insert at top (before other first-party requests and domain groups)
         const firstDomainGroup = pageContent.querySelector('.domain-group');
-        if (firstDomainGroup) {
+        // Only select direct children request items, not those nested in domain groups
+        const firstFirstPartyRequest = pageContent.querySelector(':scope > .request-item');
+
+        if (firstFirstPartyRequest) {
+            // Insert before the first first-party request
+            pageContent.insertBefore(item, firstFirstPartyRequest);
+        } else if (firstDomainGroup) {
+            // No first-party requests yet, insert before domain groups
             pageContent.insertBefore(item, firstDomainGroup);
         } else {
+            // Empty page group
             pageContent.appendChild(item);
         }
     }
@@ -479,12 +625,51 @@ export function filterRequests() {
         if (state.currentFilter !== 'all') {
             if (state.currentFilter === 'starred') {
                 matchesFilter = request.starred;
+            } else if (state.currentFilter === 'XHR') {
+                // we technically dont know whether this is xhr or not but wanted to be similar to chrome devtools
+
+                // XHR filter: exclude images, fonts, and text files based on Content-Type and extension
+                let contentType = '';
+                if (request.response && request.response.headers) {
+                    const ctHeader = request.response.headers.find(h => 
+                        h.name.toLowerCase() === 'content-type'
+                    );
+                    if (ctHeader) {
+                        contentType = ctHeader.value.toLowerCase();
+                    }
+                }
+                
+                // Exclude image, font, and text content types
+                const excludeTypes = [
+                    'image/', 'font/', 'text/html', 'text/plain', 'text/xml',
+                    'application/font', 'application/x-font'
+                ];
+                
+                const isExcludedByContentType = excludeTypes.some(type => contentType.includes(type));
+                
+                // Also check by extension
+                const excludeExtensions = [
+                    '.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.ico', '.bmp',
+                    '.woff', '.woff2', '.ttf', '.eot', '.otf',
+                    '.txt', '.xml', '.html', '.htm'
+                ];
+                const isExcludedByExtension = excludeExtensions.some(ext => {
+                    return urlLower.endsWith(ext) || urlLower.includes(ext + '?');
+                });
+                
+                matchesFilter = !isExcludedByContentType && !isExcludedByExtension;
             } else {
                 matchesFilter = method === state.currentFilter;
             }
         }
 
-        if (matchesSearch && matchesFilter) {
+        // Check timeline filter
+        let matchesTimeline = true;
+        if (state.timelineFilterTimestamp !== null) {
+            matchesTimeline = request.capturedAt <= state.timelineFilterTimestamp;
+        }
+
+        if (matchesSearch && matchesFilter && matchesTimeline) {
             item.style.display = 'flex';
             visibleCount++;
         } else {
@@ -539,6 +724,194 @@ export function filterRequests() {
     }
 }
 
+export function setTimelineFilter(timestamp, requestIndex) {
+    if (state.timelineFilterTimestamp === timestamp && state.timelineFilterRequestIndex === requestIndex) {
+        // Clear filter if clicking the same timestamp
+        state.timelineFilterTimestamp = null;
+        state.timelineFilterRequestIndex = null;
+
+        // Restore grouped view by re-rendering all requests
+        restoreGroupedView();
+    } else {
+        state.timelineFilterTimestamp = timestamp;
+        state.timelineFilterRequestIndex = requestIndex;
+
+        // Re-sort requests chronologically when timeline filter is active
+        sortRequestsChronologically();
+    }
+
+    // Update UI indicator
+    updateTimelineFilterIndicator();
+    filterRequests();
+}
+
+function restoreGroupedView() {
+    // Clear and rebuild the entire request list
+    elements.requestList.innerHTML = '';
+    state.requests.forEach((request, index) => {
+        renderRequestItem(request, index);
+    });
+}
+
+function sortRequestsChronologically() {
+    // When timeline filter is active, show a flat chronological view
+    // Build from state.requests array to ensure correct order
+
+    // Filter and sort requests that should be shown
+    const filteredRequests = state.requests
+        .map((request, index) => ({ request, index }))
+        .filter(({ request }) => {
+            // Only include requests that pass the timeline filter
+            if (state.timelineFilterTimestamp !== null) {
+                return request.capturedAt <= state.timelineFilterTimestamp;
+            }
+            return true;
+        })
+        .sort((a, b) => {
+            // Primary sort: by timestamp (DESCENDING - newest first)
+            const timeA = a.request.capturedAt || 0;
+            const timeB = b.request.capturedAt || 0;
+            if (timeA !== timeB) {
+                return timeB - timeA; // Reversed: newer timestamps first
+            }
+            // Secondary sort: by request index (DESCENDING - higher index first)
+            return b.index - a.index; // Reversed: clicked request at top
+        });
+
+    // Clear the request list
+    elements.requestList.innerHTML = '';
+
+    // Create a flat container
+    const flatContainer = document.createElement('div');
+    flatContainer.id = 'flat-timeline-view';
+    flatContainer.style.cssText = 'display: flex; flex-direction: column;';
+
+    // Add a header
+    const header = document.createElement('div');
+    header.style.cssText = 'padding: 8px 12px; background: rgba(138, 180, 248, 0.1); border-bottom: 1px solid var(--border-color); font-size: 11px; color: var(--accent-color); font-weight: 500;';
+    header.textContent = `📋 Timeline View (${filteredRequests.length} requests)`;
+    flatContainer.appendChild(header);
+
+    // Render each request in order using the existing renderRequestItem logic
+    filteredRequests.forEach(({ request, index }) => {
+        // Create request item inline (similar to renderRequestItem but without grouping)
+        const item = document.createElement('div');
+        item.className = 'request-item';
+        if (request.starred) item.classList.add('starred');
+        item.dataset.index = index;
+        item.dataset.method = request.request.method;
+
+        const methodSpan = document.createElement('span');
+        methodSpan.className = `req-method ${request.request.method}`;
+        methodSpan.textContent = request.request.method;
+
+        // Add domain badge in timeline view
+        const domainBadge = document.createElement('span');
+        domainBadge.className = 'domain-badge';
+        const hostname = getHostname(request.request.url);
+        domainBadge.textContent = hostname;
+        domainBadge.title = `Domain: ${hostname}`;
+
+        // Generate a consistent color based on hostname
+        const hashCode = hostname.split('').reduce((acc, char) => {
+            return char.charCodeAt(0) + ((acc << 5) - acc);
+        }, 0);
+        const hue = Math.abs(hashCode % 360);
+        domainBadge.style.backgroundColor = `hsla(${hue}, 60%, 50%, 0.15)`;
+        domainBadge.style.color = `hsl(${hue}, 60%, 70%)`;
+
+        const urlSpan = document.createElement('span');
+        urlSpan.className = 'req-url';
+
+        if (request.fromOtherTab) {
+            const globeIcon = document.createElement('span');
+            globeIcon.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" style="vertical-align: -2px; margin-right: 4px; opacity: 0.7;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" fill="currentColor"/></svg>';
+            globeIcon.title = "Captured from another tab";
+            urlSpan.appendChild(globeIcon);
+        }
+
+        try {
+            const urlObj = new URL(request.request.url);
+            urlSpan.appendChild(document.createTextNode(urlObj.pathname + urlObj.search));
+        } catch (e) {
+            urlSpan.appendChild(document.createTextNode(request.request.url));
+        }
+        urlSpan.title = request.request.url;
+
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'req-time';
+        timeSpan.textContent = formatTime(request.capturedAt);
+        if (request.capturedAt) {
+            const date = new Date(request.capturedAt);
+            timeSpan.title = date.toLocaleTimeString();
+        }
+
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'item-actions';
+
+        const starBtn = document.createElement('button');
+        starBtn.className = `star-btn ${request.starred ? 'active' : ''}`;
+        starBtn.innerHTML = request.starred ? STAR_ICON_FILLED : STAR_ICON_OUTLINE;
+        starBtn.title = request.starred ? 'Unstar' : 'Star request';
+        starBtn.onclick = (e) => {
+            e.stopPropagation();
+            toggleStar(request);
+        };
+
+        const timelineBtn = document.createElement('button');
+        timelineBtn.className = 'timeline-btn';
+        if (index === state.timelineFilterRequestIndex) {
+            timelineBtn.classList.add('active');
+        }
+        timelineBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14">
+            <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z" fill="currentColor"/>
+        </svg>`;
+        timelineBtn.title = 'Show requests before this one';
+        timelineBtn.onclick = (e) => {
+            e.stopPropagation();
+            setTimelineFilter(request.capturedAt, index);
+        };
+
+        const numberSpan = document.createElement('span');
+        numberSpan.className = 'req-number';
+        numberSpan.textContent = `#${index + 1}`;
+        numberSpan.style.cssText = 'margin-right: 8px; color: var(--text-secondary); font-size: 11px; min-width: 30px; display: inline-block; text-align: right;';
+
+        actionsDiv.appendChild(starBtn);
+        actionsDiv.appendChild(timelineBtn);
+
+        item.appendChild(numberSpan);
+        item.appendChild(methodSpan);
+        item.appendChild(domainBadge);
+        item.appendChild(urlSpan);
+        item.appendChild(timeSpan);
+        item.appendChild(actionsDiv);
+
+        item.addEventListener('click', () => selectRequest(index));
+        item.style.paddingLeft = '12px';
+
+        flatContainer.appendChild(item);
+    });
+
+    elements.requestList.appendChild(flatContainer);
+}
+
+function updateTimelineFilterIndicator() {
+    const allTimelineButtons = elements.requestList.querySelectorAll('.timeline-btn');
+    allTimelineButtons.forEach(btn => {
+        const item = btn.closest('.request-item');
+        if (item) {
+            const index = parseInt(item.dataset.index);
+
+            if (index === state.timelineFilterRequestIndex) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        }
+    });
+}
+
 export function updateHistoryButtons() {
     elements.historyBackBtn.disabled = state.historyIndex <= 0;
     elements.historyFwdBtn.disabled = state.historyIndex >= state.requestHistory.length - 1;
@@ -583,7 +956,8 @@ export function setupResizeHandle() {
     resizeHandle.addEventListener('mousedown', (e) => {
         isResizing = true;
         resizeHandle.classList.add('resizing');
-        document.body.style.cursor = 'col-resize';
+        const isVertical = document.querySelector('.split-view-container').classList.contains('vertical-layout');
+        document.body.style.cursor = isVertical ? 'row-resize' : 'col-resize';
         document.body.style.userSelect = 'none';
     });
 
@@ -591,14 +965,25 @@ export function setupResizeHandle() {
         if (!isResizing) return;
 
         const containerRect = container.getBoundingClientRect();
-        const offsetX = e.clientX - containerRect.left;
-        const containerWidth = containerRect.width;
+        const isVertical = document.querySelector('.split-view-container').classList.contains('vertical-layout');
 
-        let percentage = (offsetX / containerWidth) * 100;
-        percentage = Math.max(20, Math.min(80, percentage));
+        if (isVertical) {
+            const offsetY = e.clientY - containerRect.top;
+            const containerHeight = containerRect.height;
+            let percentage = (offsetY / containerHeight) * 100;
+            percentage = Math.max(20, Math.min(80, percentage));
 
-        requestPane.style.flex = `0 0 ${percentage}%`;
-        responsePane.style.flex = `0 0 ${100 - percentage}%`;
+            requestPane.style.flex = `0 0 ${percentage}%`;
+            responsePane.style.flex = `0 0 ${100 - percentage}%`;
+        } else {
+            const offsetX = e.clientX - containerRect.left;
+            const containerWidth = containerRect.width;
+            let percentage = (offsetX / containerWidth) * 100;
+            percentage = Math.max(20, Math.min(80, percentage));
+
+            requestPane.style.flex = `0 0 ${percentage}%`;
+            responsePane.style.flex = `0 0 ${100 - percentage}%`;
+        }
     });
 
     document.addEventListener('mouseup', () => {

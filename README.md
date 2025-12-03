@@ -51,6 +51,17 @@ rep+ is a lightweight Chrome DevTools extension inspired by Burp Suite's Repeate
   - **Group Starring**: Star an entire Page Group (📄) or Domain Group (🌐) to track it.
     - **Focused Tracking**: Starring a Page Group only stars first-party requests (same domain), ignoring third-party noise.
     - **Auto-Star**: New requests belonging to a starred group are automatically starred as they arrive.
+- **Timeline Filter**: Analyze request sequences with ease.
+  - **One-Click Timeline**: Click the clock icon ⏱️ on any request to see a chronological view of all requests that loaded before it.
+  - **Flat View**: Removes all grouping to show requests in pure time order (newest first).
+  - **Domain Badges**: Each request displays a color-coded domain badge for easy identification across different domains.
+  - **Quick Context**: Instantly understand what loaded before a specific request, perfect for debugging race conditions or understanding load sequences.
+  - **Toggle Off**: Click the same clock icon again to return to the grouped view.
+- **Multiple View Modes**: Inspect requests and responses in different formats.
+  - **Pretty View**: Syntax-highlighted JSON, XML, and HTML for easy reading.
+  - **Raw View**: See the exact raw text of the request or response.
+  - **Hex View**: Binary view with hex dump format, showing offset, hex bytes, and ASCII representation.
+- **Layout Toggle**: Switch between horizontal and vertical split panes (↔️/↕️) to customize your workspace based on your screen size or preference.
 - **Filters & Regex**: Powerful search across URL, domain, headers, and body. Toggle **Regex Mode** for advanced pattern matching (e.g., finding specific tokens or IDs).
 - **Converters**: Right-click context menu to instantly encode/decode data:
   - Base64
@@ -177,6 +188,7 @@ If **rep+ saved you time** during testing, development, or bug bounty work, plea
    <a href="https://github.com/greenat92">
     <img src="https://avatars.githubusercontent.com/u/8342706?s=60" width="60" style="border-radius:50%;" alt="Sponsor"/>
   </a>
+  
 </p>
 
 <p align="center">
@@ -187,4 +199,3 @@ If **rep+ saved you time** during testing, development, or bug bounty work, plea
     <img src="https://img.shields.io/badge/Bitcoin%20Sponsor-₿-f7931a?style=for-the-badge&logo=bitcoin&logoColor=white" alt="Bitcoin Sponsor"/>
   </a>
 </p>
-

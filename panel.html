@@ -66,6 +66,7 @@
                     <button class="filter-btn" data-filter="POST">POST</button>
                     <button class="filter-btn" data-filter="PUT">PUT</button>
                     <button class="filter-btn" data-filter="DELETE">DELETE</button>
+                    <button class="filter-btn" data-filter="XHR" title="Show only XHR/Fetch requests (exclude images, fonts, text files)">XHR</button>
                     <button class="filter-btn" data-filter="starred" title="Show Starred">★</button>
                 </div>
             </div>
@@ -138,12 +139,31 @@
                                         fill="currentColor" />
                                 </svg>
                             </button>
+                            <button id="layout-toggle-btn" class="icon-btn" title="Toggle Layout (Horizontal/Vertical)">
+                                <svg viewBox="0 0 24 24" width="16" height="16">
+                                    <path d="M3 5v14h18V5H3zm16 12h-6V7h6v10zm-8 0H5V7h6v10z" fill="currentColor" />
+                                </svg>
+                            </button>
                             <button id="send-btn" class="primary-btn">Send</button>
                         </div>
                     </div>
+                    <div class="pane-tabs">
+                        <button class="view-tab active" data-view="pretty" data-pane="request">Pretty</button>
+                        <button class="view-tab" data-view="raw" data-pane="request">Raw</button>
+                        <button class="view-tab" data-view="hex" data-pane="request">Hex</button>
+                    </div>
                     <div class="pane-body">
                         <div class="editor-container">
-                            <div id="raw-request-input" contenteditable="true" class="editor" spellcheck="false">
+                            <div id="req-view-pretty" class="view-content active">
+                                <div id="raw-request-input" contenteditable="true" class="editor" spellcheck="false">
+                                </div>
+                            </div>
+                            <div id="req-view-raw" class="view-content" style="display: none;">
+                                <textarea id="raw-request-textarea" class="editor raw-editor"
+                                    spellcheck="false"></textarea>
+                            </div>
+                            <div id="req-view-hex" class="view-content" style="display: none;">
+                                <pre id="req-hex-display" class="hex-display"></pre>
                             </div>
                         </div>
                         <div class="search-bar-container">
@@ -214,9 +234,22 @@
                             </button>
                         </div>
                     </div>
+                    <div class="pane-tabs">
+                        <button class="view-tab active" data-view="pretty" data-pane="response">Pretty</button>
+                        <button class="view-tab" data-view="raw" data-pane="response">Raw</button>
+                        <button class="view-tab" data-view="hex" data-pane="response">Hex</button>
+                    </div>
                     <div class="pane-body">
                         <div class="editor-container">
-                            <pre id="raw-response-display"></pre>
+                            <div id="res-view-pretty" class="view-content active">
+                                <pre id="raw-response-display"></pre>
+                            </div>
+                            <div id="res-view-raw" class="view-content" style="display: none;">
+                                <pre id="raw-response-text" class="editor raw-editor"></pre>
+                            </div>
+                            <div id="res-view-hex" class="view-content" style="display: none;">
+                                <pre id="res-hex-display" class="hex-display"></pre>
+                            </div>
                         </div>
                         <div class="search-bar-container">
                             <input type="text" id="response-search" class="search-input"
@@ -399,11 +432,19 @@
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label for="anthropic-api-key">Anthropic API Key</label>
-                    <input type="password" id="anthropic-api-key" class="form-control" placeholder="sk-ant-...">
-                    <p class="help-text">Required for "Explain Request" feature. Stored locally.</p>
+                    <label for="ai-provider">AI Provider</label>
+                    <select id="ai-provider" class="form-control">
+                        <option value="anthropic">Anthropic (Claude)</option>
+                        <option value="gemini">Google Gemini</option>
+                    </select>
                 </div>
-                <div class="form-group">
+                <div id="anthropic-settings" class="provider-settings">
+                    <div class="form-group">
+                        <label for="anthropic-api-key">Anthropic API Key</label>
+                        <input type="password" id="anthropic-api-key" class="form-control" placeholder="sk-ant-...">
+                        <p class="help-text">Required for "Explain Request" feature. Stored locally.</p>
+                    </div>
+                    <div class="form-group">
                     <label for="anthropic-model">Model</label>
                     <select id="anthropic-model" class="form-control">
                         <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (Oct 2024)</option>
@@ -411,6 +452,22 @@
                         <option value="claude-3-opus-20240229">Claude 3 Opus</option>
                         <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
                     </select>
+                </div>
+                </div>
+                <div id="gemini-settings" class="provider-settings" style="display: none;">
+                    <div class="form-group">
+                        <label for="gemini-api-key">Gemini API Key</label>
+                        <input type="password" id="gemini-api-key" class="form-control" placeholder="AIza...">
+                        <p class="help-text">Get your API key from Google AI Studio. Stored locally.</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="gemini-model">Model</label>
+                        <select id="gemini-model" class="form-control">
+                            <option value="gemini-3-pro-preview">Gemini 3 Preview</option>
+                            <option value="gemini-2-5-pro">Gemini 2.5 Pro</option>
+                            <option value="gemini-flash-latest">Gemini Flash (Latest)</option>
+                        </select>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -421,7 +478,7 @@
 
     <!-- Explanation Modal -->
     <div id="explanation-modal" class="modal">
-        <div class="modal-content" style="width: 700px; max-width: 90vw;">
+        <div class="modal-content" style="min-width: 600px; width: 60%;">
             <div class="modal-header">
                 <h3>Request Explanation</h3>
                 <button class="close-modal">&times;</button>
@@ -443,6 +500,11 @@
                     <button class="extractor-tab active" data-tab="secrets">Secrets</button>
                     <button class="extractor-tab" data-tab="endpoints">Endpoints</button>
                 </div>
+                <div id="domain-filter-container" style="margin: 0 10px; display: none;">
+                    <select id="domain-filter" class="domain-filter-select">
+                        <option value="all">All Domains</option>
+                    </select>
+                </div>
                 <div id="extractor-search-container" style="flex: 1; margin: 0 20px; display: none;">
                     <input type="text" id="extractor-search" class="search-input" placeholder="Search..."
                         style="width: 100%;">
@@ -462,6 +524,7 @@
                     <div id="secrets-results">
                         <div class="empty-state">No secrets found yet. Click "Scan" to start.</div>
                     </div>
+                    <div id="secrets-pagination" class="pagination-container" style="display: none;"></div>
                     <p class="disclaimer-text"
                         style="margin-top: 15px; font-size: 11px; color: #888; border-top: 1px solid var(--border-color); padding-top: 10px;">
                         <strong>Disclaimer:</strong> Automated scanning may produce false positives. Please manually
@@ -474,6 +537,7 @@
                     <div id="endpoints-results">
                         <div class="empty-state">No endpoints found yet. Click "Scan" to start.</div>
                     </div>
+                    <div id="endpoints-pagination" class="pagination-container" style="display: none;"></div>
                     <p class="disclaimer-text"
                         style="margin-top: 15px; font-size: 11px; color: #888; border-top: 1px solid var(--border-color); padding-top: 10px;">
                         <strong>Note:</strong> Endpoint extraction uses pattern matching and may include some false

@@ -74,10 +74,56 @@ export async function handleSendRequest() {
 
     } catch (err) {
         console.error('Request Failed:', err);
-        elements.resStatus.textContent = 'Error';
-        elements.resStatus.className = 'status-badge status-5xx';
-        elements.resTime.textContent = '0ms';
-        elements.rawResponseDisplay.textContent = `Error: ${err.message}\n\nStack: ${err.stack}`;
-        elements.rawResponseDisplay.style.display = 'block';
+
+        // Check for missing permissions if it's a fetch error
+        if (err.message === 'Failed to fetch' || err.message.includes('NetworkError')) {
+            chrome.permissions.contains({
+                permissions: ['webRequest'],
+                origins: ['<all_urls>']
+            }, (hasPermissions) => {
+                if (!hasPermissions) {
+                    elements.resStatus.textContent = 'Permission Required';
+                    elements.resStatus.className = 'status-badge status-4xx';
+                    elements.resTime.textContent = '0ms';
+
+                    elements.rawResponseDisplay.innerHTML = `
+                        <div style="padding: 20px; text-align: center;">
+                            <h3 style="margin-top: 0;">Permission Required</h3>
+                            <p>To replay requests to any domain, Rep+ needs the <code>&lt;all_urls&gt;</code> permission.</p>
+                            <p>This permission is optional and only requested when you use this feature.</p>
+                            <button id="grant-perm-btn" class="primary-btn" style="margin-top: 10px;">Grant Permission & Retry</button>
+                        </div>
+                    `;
+                    elements.rawResponseDisplay.style.display = 'block';
+
+                    document.getElementById('grant-perm-btn').addEventListener('click', () => {
+                        chrome.permissions.request({
+                            permissions: ['webRequest'],
+                            origins: ['<all_urls>']
+                        }, (granted) => {
+                            if (granted) {
+                                handleSendRequest();
+                            } else {
+                                elements.rawResponseDisplay.innerHTML += '<p style="color: var(--error-color); margin-top: 10px;">Permission denied.</p>';
+                            }
+                        });
+                    });
+                    return;
+                }
+
+                // If permissions exist but still failed
+                showError(err);
+            });
+        } else {
+            showError(err);
+        }
     }
+}
+
+function showError(err) {
+    elements.resStatus.textContent = 'Error';
+    elements.resStatus.className = 'status-badge status-5xx';
+    elements.resTime.textContent = '0ms';
+    elements.rawResponseDisplay.textContent = `Error: ${err.message}\n\nStack: ${err.stack}`;
+    elements.rawResponseDisplay.style.display = 'block';
 }
